@@ -7,6 +7,7 @@ app = FastAPI(title="My FastAPI App")
 
 origins = [
     "http://localhost:3000",  # React Dev Server
+    "https://file-managment-rag-poc.vercel.app"
 ]
 
 app.add_middleware(
