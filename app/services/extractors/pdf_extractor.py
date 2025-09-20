@@ -1,34 +1,233 @@
+# # app/services/extractors/pdf_extractor.py
+# import pdfplumber
+# import fitz
+# import pytesseract
+# from PIL import Image
+# from io import BytesIO
+# from .base_extractor import BaseExtractor
+
+
+# this is text extraction from digital PDFs using pdfplumber and fitz
+# class PdfExtractor(BaseExtractor):
+#     def extract(self, file_bytes: BytesIO):
+#         """Return extracted text and PDF type (Digital/Scanned)"""
+#         def detect_pdf_type(pdf_bytes):
+#             with pdfplumber.open(pdf_bytes) as pdf:
+#                 for page in pdf.pages:
+#                     if page.extract_text():
+#                         return "Digital"
+#             return "Scanned"
+
+#         pdf_type = detect_pdf_type(file_bytes)
+#         text = ""
+
+#         if pdf_type == "Digital":
+#             with pdfplumber.open(file_bytes) as pdf:
+#                 for page in pdf.pages:
+#                     text += page.extract_text() or ""
+#         else:
+#             doc = fitz.open(stream=file_bytes, filetype="pdf")
+#             for i in range(len(doc)):
+#                 page = doc.load_page(i)
+#                 pix = page.get_pixmap()
+#                 img = Image.open(BytesIO(pix.tobytes("png")))
+#                 text += pytesseract.image_to_string(img)
+
+#         return text, pdf_type
+
+# this is skip pages in digital PDFs
+# import pdfplumber
+# import fitz
+# import pytesseract
+# from PIL import Image
+# from io import BytesIO
+# from typing import Optional, List
+# from .base_extractor import BaseExtractor
+
+# class PdfExtractor(BaseExtractor):
+#     def __init__(self, skip_pages: Optional[List[int]] = None):
+#         """
+#         skip_pages: List of 1-based page numbers to skip
+#         """
+#         self.skip_pages = skip_pages or []
+
+#     def extract(self, file_bytes: BytesIO):
+#         """
+#         Extract text from PDF.
+#         Returns: (extracted_text, pdf_type)
+#         pdf_type: 'Digital' or 'Scanned'
+#         """
+#         pdf_type = self._detect_pdf_type(file_bytes)
+#         text = ""
+
+#         if pdf_type == "Digital":
+#             text = self._extract_digital_pdf(file_bytes)
+#         else:
+#             text = self._extract_scanned_pdf(file_bytes)
+
+#         return text, pdf_type
+
+#     def _detect_pdf_type(self, pdf_bytes: BytesIO) -> str:
+#         """Detect if PDF is Digital or Scanned"""
+#         with pdfplumber.open(pdf_bytes) as pdf:
+#             for i, page in enumerate(pdf.pages, start=1):
+#                 if i in self.skip_pages:
+#                     continue
+#                 if page.extract_text():
+#                     return "Digital"
+#         return "Scanned"
+
+#     def _extract_digital_pdf(self, pdf_bytes: BytesIO) -> str:
+#         """Extract text and tables from digital PDF"""
+#         text = ""
+#         with pdfplumber.open(pdf_bytes) as pdf:
+#             for i, page in enumerate(pdf.pages, start=1):
+#                 if i in self.skip_pages:
+#                     continue
+
+#                 # Extract text (headers, paragraphs)
+#                 page_text = page.extract_text(x_tolerance=2, y_tolerance=2) or ""
+#                 text += page_text + "\n"
+
+#                 # Extract tables
+#                 tables = page.extract_tables()
+#                 for table in tables:
+#                     for row in table:
+#                         text += "\t".join([str(cell) if cell else "" for cell in row]) + "\n"
+#         return text
+
+#     def _extract_scanned_pdf(self, pdf_bytes: BytesIO) -> str:
+#         """Extract text from scanned PDF using OCR"""
+#         text = ""
+#         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+#         for i in range(len(doc)):
+#             if (i + 1) in self.skip_pages:  # fitz is 0-indexed
+#                 continue
+
+#             page = doc.load_page(i)
+#             pix = page.get_pixmap()
+#             img = Image.open(BytesIO(pix.tobytes("png")))
+
+#             # OCR with layout preservation
+#             custom_config = r'--oem 3 --psm 6'
+#             text += pytesseract.image_to_string(img, config=custom_config) + "\n"
+
+#         return text
+
+
 # app/services/extractors/pdf_extractor.py
 import pdfplumber
 import fitz
 import pytesseract
 from PIL import Image
 from io import BytesIO
+from typing import Optional, List
 from .base_extractor import BaseExtractor
 
-class PdfExtractor(BaseExtractor):
-    def extract(self, file_bytes: BytesIO):
-        """Return extracted text and PDF type (Digital/Scanned)"""
-        def detect_pdf_type(pdf_bytes):
-            with pdfplumber.open(pdf_bytes) as pdf:
-                for page in pdf.pages:
-                    if page.extract_text():
-                        return "Digital"
-            return "Scanned"
 
-        pdf_type = detect_pdf_type(file_bytes)
-        text = ""
+class PdfExtractor(BaseExtractor):
+    def __init__(self, skip_pages: Optional[List[int]] = None):
+        """
+        skip_pages: List of 1-based page numbers to skip
+        """
+        self.skip_pages = skip_pages or []
+
+    def extract(self, file_bytes: BytesIO):
+        """
+        Extract text from PDF and return markdown.
+        Returns: (markdown_text, pdf_type)
+        pdf_type: 'Digital' or 'Scanned'
+        """
+        pdf_type = self._detect_pdf_type(file_bytes)
 
         if pdf_type == "Digital":
-            with pdfplumber.open(file_bytes) as pdf:
-                for page in pdf.pages:
-                    text += page.extract_text() or ""
+            markdown_text = self._extract_digital_pdf(file_bytes)
         else:
-            doc = fitz.open(stream=file_bytes, filetype="pdf")
-            for i in range(len(doc)):
-                page = doc.load_page(i)
-                pix = page.get_pixmap()
-                img = Image.open(BytesIO(pix.tobytes("png")))
-                text += pytesseract.image_to_string(img)
+            markdown_text = self._extract_scanned_pdf(file_bytes)
 
-        return text, pdf_type
+        return markdown_text, pdf_type
+
+    def _detect_pdf_type(self, pdf_bytes: BytesIO) -> str:
+        """Detect if PDF is Digital or Scanned"""
+        with pdfplumber.open(pdf_bytes) as pdf:
+            for i, page in enumerate(pdf.pages, start=1):
+                if i in self.skip_pages:
+                    continue
+                if page.extract_text():
+                    return "Digital"
+        return "Scanned"
+
+    def _extract_digital_pdf(self, pdf_bytes: BytesIO) -> str:
+        """Extract text, tables, and images from digital PDF into markdown"""
+        markdown = []
+        with pdfplumber.open(pdf_bytes) as pdf:
+            for i, page in enumerate(pdf.pages, start=1):
+                if i in self.skip_pages:
+                    continue
+
+                # Add page heading
+                markdown.append(f"# Page Number {i}\n")
+                
+                # --- Extract normal text ---
+                page_text = page.extract_text(x_tolerance=2, y_tolerance=2) or ""
+                if page_text.strip():
+                    # Use headings if text looks like a title
+                    lines = page_text.splitlines()
+                    for line in lines:
+                        if line.isupper() or len(line.split()) <= 4:
+                            markdown.append(f"## {line.strip()}")
+                        else:
+                            markdown.append(line.strip())
+                    markdown.append("\n")
+
+                # --- Extract tables ---
+                tables = page.extract_tables()
+                for table in tables:
+                    markdown.append(self._format_table_markdown(table))
+                    markdown.append("\n")
+
+                # --- Add placeholder for images/diagrams ---
+                if page.images:
+                    for idx, img in enumerate(page.images, start=1):
+                        markdown.append(f"![Image_Page{i}_{idx}](#)")
+
+        return "\n".join(markdown)
+
+    def _extract_scanned_pdf(self, pdf_bytes: BytesIO) -> str:
+        """Extract text + OCR images into markdown"""
+        markdown = []
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        for i in range(len(doc)):
+            if (i + 1) in self.skip_pages:
+                continue
+
+            # Add page heading
+            markdown.append(f"# Page Number {i+1}\n")
+            
+            page = doc.load_page(i)
+            pix = page.get_pixmap()
+            img = Image.open(BytesIO(pix.tobytes("png")))
+
+            # OCR text
+            custom_config = r'--oem 3 --psm 6'
+            ocr_text = pytesseract.image_to_string(img, config=custom_config)
+
+            if ocr_text.strip():
+                markdown.append(ocr_text.strip())
+
+            # Insert image placeholder
+            markdown.append(f"![Scanned_Page_{i+1}](#)")
+
+        return "\n".join(markdown)
+
+    def _format_table_markdown(self, table):
+        """Convert extracted table into markdown table"""
+        if not table:
+            return ""
+        md = []
+        headers = table[0]
+        md.append("| " + " | ".join([h if h else "" for h in headers]) + " |")
+        md.append("| " + " | ".join(["---"] * len(headers)) + " |")
+        for row in table[1:]:
+            md.append("| " + " | ".join([str(c) if c else "" for c in row]) + " |")
+        return "\n".join(md)
