@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+supabase
+pdfplumber
+markdownify
+requests
+python-docx
+pydantic
+python-dotenv
+camelot-py   
+
