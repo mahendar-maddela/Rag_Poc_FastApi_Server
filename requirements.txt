@@ -9,4 +9,6 @@ python-docx
 pydantic
 python-dotenv
 camelot-py   
+pytesseract
+
 
