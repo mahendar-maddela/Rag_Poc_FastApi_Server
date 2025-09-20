@@ -2,6 +2,7 @@ fastapi
 uvicorn
 supabase
 pdfplumber
+PyMuPDF
 markdownify
 requests
 python-docx
