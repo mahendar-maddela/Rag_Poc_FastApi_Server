@@ -24,11 +24,12 @@ class StorageService:
         except Exception as e:
             raise ValueError(f"Failed to upload file to Supabase: {e}")
 
-    def update_file_links(self, file_id: str, rich_link: str, md_link: str,md_content:str,):
+    def update_file_links(self, file_id: str, rich_link: str, md_link: str,md_content:str,rich_text:str):
         supabase.table("fileInfo").update(
             {
                 "extracted_richtext_link": rich_link,
                 "extracted_markdown_link": md_link,
-                "extracted_markdown_text": md_content
+                "extracted_markdown_text": md_content,
+                "extracted_rich_text":rich_text
             }
         ).eq("id", file_id).execute()

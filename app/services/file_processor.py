@@ -99,7 +99,7 @@ class FileProcessor:
         md_url = self.storage.upload(md_content, f"{self.file_id}_extracted.md")
 
         # Update DB
-        self.storage.update_file_links(self.file_id, rich_url, md_url,md_content)
+        self.storage.update_file_links(self.file_id, rich_url, md_url,md_content ,rich_text)
 
         return {
             "file_id": self.file_id,

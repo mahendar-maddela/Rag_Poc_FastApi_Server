@@ -193,10 +193,10 @@ class PdfExtractor(BaseExtractor):
                     rich_text.append("\n")
 
                 # --- Add placeholder for images/diagrams ---
-                if page.images:
-                    for idx, _ in enumerate(page.images, start=1):
-                        markdown.append(f"![Image_Page{i}_{idx}](#)")
-                        rich_text.append(f"[Image_Page{i}_{idx}]")
+                # if page.images:
+                #     for idx, _ in enumerate(page.images, start=1):
+                #         markdown.append(f"![Image_Page{i}_{idx}](#)")
+                #         rich_text.append(f"[Image_Page{i}_{idx}]")
 
         return "\n".join(markdown), "\n".join(rich_text)
 
