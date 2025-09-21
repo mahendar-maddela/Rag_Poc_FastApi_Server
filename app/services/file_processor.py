@@ -88,13 +88,14 @@ class FileProcessor:
         extractor = self._get_extractor()
 
         # Extract text
-        text_content, detected_type = extractor.extract(file_bytes)
+        # text_content, rich_text = extractor.extract(file_bytes)
+        markdown_text, rich_text, detected_type = extractor.extract(file_bytes)
 
         # Convert to Markdown
-        md_content = markdownify.markdownify(text_content, heading_style="ATX")
+        md_content = markdownify.markdownify(markdown_text, heading_style="ATX")
 
         # Upload files and get public URLs
-        rich_url = self.storage.upload(text_content, f"{self.file_id}_richtext.txt")
+        rich_url = self.storage.upload(rich_text, f"{self.file_id}_richtext.txt")
         md_url = self.storage.upload(md_content, f"{self.file_id}_extracted.md")
 
         # Update DB

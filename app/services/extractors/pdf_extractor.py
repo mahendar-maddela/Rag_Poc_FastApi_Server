@@ -134,18 +134,17 @@ class PdfExtractor(BaseExtractor):
 
     def extract(self, file_bytes: BytesIO):
         """
-        Extract text from PDF and return markdown.
-        Returns: (markdown_text, pdf_type)
-        pdf_type: 'Digital' or 'Scanned'
+        Extract text from PDF and return markdown + rich text.
+        Returns: (markdown_text, rich_text, pdf_type)
         """
         pdf_type = self._detect_pdf_type(file_bytes)
 
         if pdf_type == "Digital":
-            markdown_text = self._extract_digital_pdf(file_bytes)
+            markdown_text, rich_text = self._extract_digital_pdf(file_bytes)
         else:
-            markdown_text = self._extract_scanned_pdf(file_bytes)
+            markdown_text, rich_text = self._extract_scanned_pdf(file_bytes)
 
-        return markdown_text, pdf_type
+        return markdown_text, rich_text, pdf_type
 
     def _detect_pdf_type(self, pdf_bytes: BytesIO) -> str:
         """Detect if PDF is Digital or Scanned"""
@@ -157,9 +156,11 @@ class PdfExtractor(BaseExtractor):
                     return "Digital"
         return "Scanned"
 
-    def _extract_digital_pdf(self, pdf_bytes: BytesIO) -> str:
-        """Extract text, tables, and images from digital PDF into markdown"""
+    def _extract_digital_pdf(self, pdf_bytes: BytesIO):
+        """Extract text, tables, and images from digital PDF into markdown + rich text"""
         markdown = []
+        rich_text = []
+
         with pdfplumber.open(pdf_bytes) as pdf:
             for i, page in enumerate(pdf.pages, start=1):
                 if i in self.skip_pages:
@@ -167,35 +168,43 @@ class PdfExtractor(BaseExtractor):
 
                 # Add page heading
                 markdown.append(f"# Page Number {i}\n")
-                
+                rich_text.append(f"=== Page Number {i} ===\n")
+
                 # --- Extract normal text ---
                 page_text = page.extract_text(x_tolerance=2, y_tolerance=2) or ""
                 if page_text.strip():
-                    # Use headings if text looks like a title
                     lines = page_text.splitlines()
                     for line in lines:
                         if line.isupper() or len(line.split()) <= 4:
                             markdown.append(f"## {line.strip()}")
+                            rich_text.append(f"[HEADER] {line.strip()}")
                         else:
                             markdown.append(line.strip())
+                            rich_text.append(line.strip())
                     markdown.append("\n")
+                    rich_text.append("\n")
 
                 # --- Extract tables ---
                 tables = page.extract_tables()
                 for table in tables:
                     markdown.append(self._format_table_markdown(table))
+                    rich_text.append(self._format_table_richtext(table))
                     markdown.append("\n")
+                    rich_text.append("\n")
 
                 # --- Add placeholder for images/diagrams ---
                 if page.images:
-                    for idx, img in enumerate(page.images, start=1):
+                    for idx, _ in enumerate(page.images, start=1):
                         markdown.append(f"![Image_Page{i}_{idx}](#)")
+                        rich_text.append(f"[Image_Page{i}_{idx}]")
 
-        return "\n".join(markdown)
+        return "\n".join(markdown), "\n".join(rich_text)
 
-    def _extract_scanned_pdf(self, pdf_bytes: BytesIO) -> str:
-        """Extract text + OCR images into markdown"""
+    def _extract_scanned_pdf(self, pdf_bytes: BytesIO):
+        """Extract text + OCR images into markdown + rich text"""
         markdown = []
+        rich_text = []
+
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         for i in range(len(doc)):
             if (i + 1) in self.skip_pages:
@@ -203,7 +212,8 @@ class PdfExtractor(BaseExtractor):
 
             # Add page heading
             markdown.append(f"# Page Number {i+1}\n")
-            
+            rich_text.append(f"=== Page Number {i+1} ===\n")
+
             page = doc.load_page(i)
             pix = page.get_pixmap()
             img = Image.open(BytesIO(pix.tobytes("png")))
@@ -214,11 +224,13 @@ class PdfExtractor(BaseExtractor):
 
             if ocr_text.strip():
                 markdown.append(ocr_text.strip())
+                rich_text.append(ocr_text.strip())
 
             # Insert image placeholder
             markdown.append(f"![Scanned_Page_{i+1}](#)")
+            rich_text.append(f"[Scanned_Page_{i+1}]")
 
-        return "\n".join(markdown)
+        return "\n".join(markdown), "\n".join(rich_text)
 
     def _format_table_markdown(self, table):
         """Convert extracted table into markdown table"""
@@ -231,3 +243,12 @@ class PdfExtractor(BaseExtractor):
         for row in table[1:]:
             md.append("| " + " | ".join([str(c) if c else "" for c in row]) + " |")
         return "\n".join(md)
+
+    def _format_table_richtext(self, table):
+        """Convert extracted table into simple rich text format"""
+        if not table:
+            return ""
+        rt = []
+        for row in table:
+            rt.append("\t".join([str(c) if c else "" for c in row]))
+        return "\n".join(rt)
