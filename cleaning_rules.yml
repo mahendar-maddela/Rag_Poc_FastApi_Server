@@ -23,15 +23,15 @@ cleaning_rules:
     - pattern: '\n\s*\n+'
       replacement: '\n\n'
 
-  # generic_cleanup:
-  #   - pattern: '[-_,."\`]{2,}'
-  #     replacement: ''       # remove repeated punctuation
-  #   - pattern: '[^a-zA-Z0-9\s\n\.]'
-  #     replacement: ''       # remove isolated non-alphanumeric symbols
-  #   - pattern: '\s+'
-  #     replacement: ' '      # collapse multiple spaces
-  #   - pattern: '\n\s*\n+'
-  #     replacement: '\n\n'   # collapse multiple newlines
+  generic_cleanup:
+    # - pattern: '[-_,."\`]{2,}'
+    #   replacement: ''       # remove repeated punctuation
+    # - pattern: '[^a-zA-Z0-9\s\n\.]'
+    #   replacement: ''       # remove isolated non-alphanumeric symbols
+    - pattern: '\s+'
+      replacement: ' '      # collapse multiple spaces
+    - pattern: '\n\s*\n+'
+      replacement: '\n'   # collapse multiple newlines
 
   elements:
     - pattern: '•\s*'

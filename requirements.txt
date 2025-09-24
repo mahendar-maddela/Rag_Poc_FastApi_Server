@@ -10,5 +10,5 @@ pydantic
 python-dotenv
 camelot-py   
 pytesseract
-
+PyYAML
 
