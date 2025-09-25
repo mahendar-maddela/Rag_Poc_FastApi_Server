@@ -268,7 +268,6 @@ from .base_extractor import BaseExtractor
 import yaml
 import re
 
-
 class PdfExtractor(BaseExtractor):
     def __init__(self, skip_pages: Optional[List[int]] = None, rules_path: str = "cleaning_rules.yml"):
         """
