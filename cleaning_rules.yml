@@ -1,4 +1,14 @@
 cleaning_rules:
+
+  elements:
+    - pattern: '•\s*'
+      replacement: '- '   # normalize bullets
+
+  # Remove § symbols
+    - pattern: '§'
+      replacement: ''
+
+
   noise_removal:
     - pattern: '^\s*\d+\s*$'
       replacement: ''   # remove standalone numbers
@@ -17,33 +27,13 @@ cleaning_rules:
     - pattern: '[“”]'
       replacement: '"'
 
+  generic_cleanup:
+  # Remove isolated/dangling symbols
+    - pattern: '[\[\]\(\)/;]+'
+      replacement: ''
+
   whitespace:
     - pattern: '[ \t]+'
       replacement: ' '
     - pattern: '\n\s*\n+'
       replacement: '\n\n'
-
-  # generic_cleanup:
-  #   # - pattern: '[-_,."\`]{2,}'
-  #   #   replacement: ''       # remove repeated punctuation
-  #   # - pattern: '[^a-zA-Z0-9\s\n\.]'
-  #   #   replacement: ''       # remove isolated non-alphanumeric symbols
-  #   - pattern: '\s+'
-  #     replacement: ' '      # collapse multiple spaces
-  #   - pattern: '\n\s*\n+'
-  #     replacement: '\n'   # collapse multiple newlines
-
-  elements:
-    - pattern: '•\s*'
-      replacement: '- '   # normalize bullets
-  
-  custom_user_rules:
-  # Generic SAP footer (flexible spacing, optional "|| --- | --- |")
-    - pattern: '©\s*2022\s*SAP\s*SE\s*or\s*an\s*SAP\s*affiliate\s*company\. All rights reserved\. ǀ PUBLIC(\s*\|\|.*)?'
-      replacement: ''
-
-  # Remove § symbols
-    - pattern: '§'
-      replacement: ''
-
-

@@ -255,9 +255,6 @@
 #         for row in table:
 #             rt.append("\t".join([str(c) if c else "" for c in row]))
 #         return "\n".join(rt)
-
-
-
 import pdfplumber
 import fitz
 import pytesseract
@@ -267,9 +264,24 @@ from typing import Optional, List
 from .base_extractor import BaseExtractor
 import yaml
 import re
+from datetime import datetime
+import os
+from pathlib import Path
+
+# Upload directory setup
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+# Base URL for serving files (from .env or default)
+BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
+
 
 class PdfExtractor(BaseExtractor):
-    def __init__(self, skip_pages: Optional[List[int]] = None, rules_path: str = "cleaning_rules.yml"):
+    def __init__(
+        self,
+        skip_pages: Optional[List[int]] = None,
+        rules_path: str = "cleaning_rules.yml",
+    ):
         """
         skip_pages: List of 1-based page numbers to skip
         """
@@ -278,20 +290,16 @@ class PdfExtractor(BaseExtractor):
             self.cleaning_rules = yaml.safe_load(f)
 
     def extract(self, file_bytes: BytesIO):
-        """
-        Extract text from PDF and return markdown + rich text.
-        Returns: (markdown_text, rich_text, pdf_type)
-        """
         pdf_type = self._detect_pdf_type(file_bytes)
-        
+
         if pdf_type == "Digital":
             markdown_text, rich_text = self._extract_digital_pdf(file_bytes)
         else:
             markdown_text, rich_text = self._extract_scanned_pdf(file_bytes)
 
-        # Apply cleaning rules
-        markdown_text = self._clean_text(markdown_text)
-        rich_text = self._clean_text(rich_text)
+        # Apply cleaning rules but protect tables/images
+        markdown_text = self._clean_text(markdown_text, md_mode=True)
+        rich_text = self._clean_text(rich_text, md_mode=False)
 
         return markdown_text, rich_text, pdf_type
 
@@ -306,21 +314,18 @@ class PdfExtractor(BaseExtractor):
         return "Scanned"
 
     def _extract_digital_pdf(self, pdf_bytes: BytesIO):
-        """Extract text, tables, and images from digital PDF into markdown + rich text"""
-        markdown = []
-        rich_text = []
-        normal_text = []
+        markdown, rich_text = [], []
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
         with pdfplumber.open(pdf_bytes) as pdf:
             for i, page in enumerate(pdf.pages, start=1):
                 if i in self.skip_pages:
                     continue
 
-                # Add page heading
                 markdown.append(f"# Page Number {i}\n")
                 rich_text.append(f"=== Page Number {i} ===\n")
 
-                # --- Extract normal text ---
+                # --- Extract text ---
                 page_text = page.extract_text(x_tolerance=2, y_tolerance=2) or ""
                 if page_text.strip():
                     lines = page_text.splitlines()
@@ -342,19 +347,59 @@ class PdfExtractor(BaseExtractor):
                     markdown.append("\n")
                     rich_text.append("\n")
 
+                # --- Extract embedded images ---
+                fitz_page = doc[i - 1]  # fitz uses 0-based index
+                for img_index, img in enumerate(fitz_page.get_images(full=True), start=1):
+                    xref = img[0]
+                    base_image = doc.extract_image(xref)
+                    image_bytes = base_image["image"]
+                    img_ext = base_image["ext"]
+                    
+                    # Convert image to RGB to prevent black/blank issues
+                    from PIL import Image
+                    import io
+                    import numpy as np
+                    
+                    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")  # <-- convert here
+
+                    # Skip masks or empty images
+                    # Check if the image is completely black
+                    np_image = np.array(image)
+                    if np_image.sum() == 0:  # all pixels are black
+                        print(f"Skipping fully black image on page {i}, index {img_index}")
+                        continue
+                    if (
+                        base_image.get("colorspace") in ["DeviceGray"]
+                        and base_image.get("bpc") == 1
+                    ):
+                        print(f"Skipping mask/empty image on page {i}, index {img_index}")
+                        continue
+
+                    # Save the image file
+                    filename = f"page_{i}_img_{img_index}_{datetime.now().strftime('%Y%m%d%H%M%S')}.{img_ext}"
+                    file_path = UPLOAD_DIR / filename
+                    image.save(file_path)
+                    
+                    # with open(file_path, "wb") as f:
+                    #     f.write(image_bytes)
+
+                    # Web URL for Markdown
+                    file_url = f"{BASE_URL}/uploads/{filename}"
+
+                    # Markdown + rich text
+                    markdown.append(f"![Image_Page{i}_{img_index}]({file_url})")
+                    rich_text.append(f"[Image_Page{i}_{img_index}] -> {file_url}")
+
         return "\n".join(markdown), "\n".join(rich_text)
 
     def _extract_scanned_pdf(self, pdf_bytes: BytesIO):
-        """Extract text + OCR images into markdown + rich text"""
-        markdown = []
-        rich_text = []
-
+        markdown, rich_text = [], []
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
         for i in range(len(doc)):
             if (i + 1) in self.skip_pages:
                 continue
 
-            # Add page heading
             markdown.append(f"# Page Number {i+1}\n")
             rich_text.append(f"=== Page Number {i+1} ===\n")
 
@@ -362,17 +407,13 @@ class PdfExtractor(BaseExtractor):
             pix = page.get_pixmap()
             img = Image.open(BytesIO(pix.tobytes("png")))
 
-            # OCR text
-            custom_config = r'--oem 3 --psm 6'
+            # OCR
+            custom_config = r"--oem 3 --psm 6"
             ocr_text = pytesseract.image_to_string(img, config=custom_config)
 
             if ocr_text.strip():
                 markdown.append(ocr_text.strip())
                 rich_text.append(ocr_text.strip())
-
-            # Insert image placeholder
-            markdown.append(f"![Scanned_Page_{i+1}](#)")
-            rich_text.append(f"[Scanned_Page_{i+1}]")
 
         return "\n".join(markdown), "\n".join(rich_text)
 
@@ -397,18 +438,36 @@ class PdfExtractor(BaseExtractor):
             rt.append("\t".join([str(c) if c else "" for c in row]))
         return "\n".join(rt)
 
-    def _clean_text(self, text: str) -> str:
+    def _clean_text(self, text: str, md_mode: bool = False) -> str:
         if not text:
             return ""
 
-        # Iterate through all rule categories
-        for category, rules in self.cleaning_rules.get("cleaning_rules", {}).items():
-            for rule in rules:
-                pattern = rule.get("pattern")
-                replacement = rule.get("replacement", "")
-                try:
-                    text = re.sub(pattern, replacement, text, flags=re.MULTILINE)
-                except re.error as e:
-                    print(f"[Warning] Invalid regex in {category}: {pattern} ({e})")
+        cleaned_lines = []
+        in_table = False
 
-        return text.strip()
+        for line in text.splitlines():
+            # --- Skip cleaning for tables/images in Markdown ---
+            if md_mode:
+                if line.strip().startswith("|") and line.strip().endswith("|"):
+                    cleaned_lines.append(line)
+                    in_table = True
+                    continue
+                if in_table and not line.strip():
+                    in_table = False
+                if line.strip().startswith("![Image_"):
+                    cleaned_lines.append(line)
+                    continue
+
+            # Apply regex cleaning rules
+            for category, rules in self.cleaning_rules.get("cleaning_rules", {}).items():
+                for rule in rules:
+                    pattern = rule.get("pattern")
+                    replacement = rule.get("replacement", "")
+                    try:
+                        line = re.sub(pattern, replacement, line, flags=re.MULTILINE)
+                    except re.error as e:
+                        print(f"[Warning] Invalid regex in {category}: {pattern} ({e})")
+
+            cleaned_lines.append(line)
+
+        return "\n".join(cleaned_lines).strip()

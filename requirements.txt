@@ -11,4 +11,5 @@ python-dotenv
 camelot-py   
 pytesseract
 PyYAML
+numpy
 

@@ -2,9 +2,13 @@ from fastapi import APIRouter, HTTPException
 from typing import Optional,List
 from app.services.file_processor import FileProcessor
 from app.db.supabase_client import supabase
+from app.services.yaml_process import YamlFileProcessor
 import logging, os
 from urllib.parse import urlparse
 from fastapi import Query
+from pydantic import BaseModel
+from app.services.storage_db_service import StorageService
+import requests
 
 
 # from app.services.file_service import extract_file
@@ -90,4 +94,59 @@ def extract_file_route(
         raise
     except Exception as e:
         logging.exception("Unexpected error in extract_file_route")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+class UserRuleRequest(BaseModel):
+    extract: str
+@router.post("/user_rule_yml")
+def user_rules_yml(request: UserRuleRequest):
+    try:
+        yaml_content = YamlFileProcessor.create_yaml_from_extract(request.extract)
+        return {"yaml": yaml_content}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception("Unexpected error in user rules yml creation")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/clean_file/{file_id}")
+def clean_extracted_file_user_rules(file_id: str):
+    try:
+        # Fetch file metadata from Supabase
+        resp = supabase.table("fileInfo").select("*").eq("id", file_id).single().execute()
+        file_info = resp.data
+        if not file_info:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        md_url = file_info.get("extracted_markdown_link")
+        if not md_url:
+            raise HTTPException(status_code=400, detail="Missing Markdown link in DB")
+
+        # Fetch Markdown content
+        resp = requests.get(md_url, timeout=10)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to fetch Markdown content")
+        md_content = resp.text
+
+        # Clean Markdown
+        cleaned_md = YamlFileProcessor.clean_md_text(md_content)
+
+        # Upload cleaned Markdown
+        storage = StorageService()
+        new_md_url = storage.upload(cleaned_md, f"{file_id}_cleaned.md")
+
+        # Update Supabase
+        supabase.table("fileInfo").update({
+            "extracted_markdown_link": new_md_url,
+            "extracted_markdown_text": cleaned_md
+        }).eq("id", file_id).execute()
+
+        return {"markdown_url": new_md_url, "status": "file cleaned with user rules"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception("Unexpected error in cleaning Markdown")
         raise HTTPException(status_code=400, detail=str(e))

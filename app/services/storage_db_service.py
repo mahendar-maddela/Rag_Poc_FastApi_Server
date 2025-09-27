@@ -33,3 +33,5 @@ class StorageService:
                 "extracted_rich_text":rich_text
             }
         ).eq("id", file_id).execute()
+
+

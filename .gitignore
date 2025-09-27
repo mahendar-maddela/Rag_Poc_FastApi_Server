@@ -13,7 +13,7 @@ env/
 ENV/
 env.bak/
 venv.bak/
-
+uploads/
 # FastAPI/Uvicorn logs
 *.log
 
