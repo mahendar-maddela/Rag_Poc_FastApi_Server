@@ -13,3 +13,9 @@ pytesseract
 PyYAML
 numpy
 
+langchain
+langchain-community
+unstructured[md]
+nltk
+python-dotenv
+

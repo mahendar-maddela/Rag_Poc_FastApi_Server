@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from fastapi import Query
 from pydantic import BaseModel
 from app.services.storage_db_service import StorageService
+from app.services.chunk_service import ChunkService
 import requests
 
 
@@ -149,4 +150,42 @@ def clean_extracted_file_user_rules(file_id: str):
         raise
     except Exception as e:
         logging.exception("Unexpected error in cleaning Markdown")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/chunk_file/{file_id}")
+def chunk_file(file_id: str, method: str = "structural"):
+    try:
+        print(f" print method name = {method}")
+        # ✅ Fetch file metadata from Supabase
+        resp = supabase.table("fileInfo").select("*").eq("id", file_id).single().execute()
+        file_info = resp.data
+        if not file_info:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        md_url = file_info.get("extracted_markdown_link")
+        if not md_url:
+            raise HTTPException(status_code=400, detail="Missing Markdown link in DB")
+
+        # ✅ Initialize ChunkService and fetch markdown content
+        chunk_service = ChunkService()
+        markdown_text = chunk_service.fetch_markdown(md_url)
+
+        # ✅ Chunk using LangChain
+        if method == "structural":
+            docs = chunk_service.structural_chunking(markdown_text)
+        elif method == "hybrid":
+            docs = chunk_service.hybrid_chunking(markdown_text)
+        else:
+            raise HTTPException(status_code=400, detail="Invalid chunking method")
+
+        # ✅ Return JSON + Markdown
+        return {
+            "doc":docs,
+            "json": chunk_service.to_json(docs),
+            "markdown": chunk_service.to_markdown(docs)
+            
+        }
+
+    except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
