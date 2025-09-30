@@ -1,14 +1,5 @@
 cleaning_rules:
 
-  elements:
-    - pattern: '•\s*'
-      replacement: '- '   # normalize bullets
-
-  # Remove § symbols
-    - pattern: '§'
-      replacement: ''
-
-
   noise_removal:
     - pattern: '^\s*\d+\s*$'
       replacement: ''   # remove standalone numbers
@@ -27,13 +18,17 @@ cleaning_rules:
     - pattern: '[“”]'
       replacement: '"'
 
+  bullet_formatting:
+    - pattern: '([a-zA-Z]\.|[0-9]+\.)\s+'
+      replacement: '\n\1 '   # ensure bullets start on a new line
+
   generic_cleanup:
-  # Remove isolated/dangling symbols
+    # Remove isolated/dangling symbols
     - pattern: '[\[\]\(\)/;]+'
       replacement: ''
 
-  whitespace:
-    - pattern: '[ \t]+'
-      replacement: ' '
-    - pattern: '\n\s*\n+'
-      replacement: '\n\n'
+  # whitespace:
+  #   - pattern: '[ \t]+'
+  #     replacement: ' '       # normalize spaces
+  #   - pattern: '\n\s*\n+'
+  #     replacement: '\n\n'    # normalize blank lines

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from typing import Optional,List
+from typing import Optional, List
 from app.services.file_processor import FileProcessor
 from app.db.supabase_client import supabase
 from app.services.yaml_process import YamlFileProcessor
@@ -9,12 +9,11 @@ from fastapi import Query
 from pydantic import BaseModel
 from app.services.storage_db_service import StorageService
 from app.services.chunk_service import ChunkService
+from app.db.ai_model_client import groq_client
 import requests
 
 
 # from app.services.file_service import extract_file
-
-
 
 
 router = APIRouter()
@@ -31,6 +30,7 @@ router = APIRouter()
 @router.get("/api_key")
 def getApiKey():
     return "hello ajhbdhasv kbsha"
+
 
 # @router.get("/extract_file/{file_id}")
 # def extract_file_route(file_id: str):
@@ -60,6 +60,7 @@ def getApiKey():
 #         logging.exception("Unexpected error in extract_file_route")
 #         raise HTTPException(status_code=400, detail=str(e))
 
+
 def _guess_file_type_from_url(url: Optional[str]) -> str:
     if not url:
         return "pdf"
@@ -67,14 +68,19 @@ def _guess_file_type_from_url(url: Optional[str]) -> str:
     ext = os.path.splitext(path)[1].lower().lstrip(".")
     return ext or "pdf"
 
+
 @router.get("/extract_file/{file_id}")
 def extract_file_route(
     file_id: str,
-    skip_pages: Optional[List[int]] = Query(None, description="Pages to skip, e.g., 4,7,8")
+    skip_pages: Optional[List[int]] = Query(
+        None, description="Pages to skip, e.g., 4,7,8"
+    ),
 ):
     try:
         # Get file metadata
-        resp = supabase.table("fileInfo").select("*").eq("id", file_id).single().execute()
+        resp = (
+            supabase.table("fileInfo").select("*").eq("id", file_id).single().execute()
+        )
         file_info = resp.data
         if not file_info:
             raise HTTPException(status_code=404, detail="File not found")
@@ -83,10 +89,17 @@ def extract_file_route(
         file_type = file_info.get("file_type") or _guess_file_type_from_url(file_url)
 
         if not file_url:
-            raise HTTPException(status_code=400, detail="Missing file_url for the file in DB")
+            raise HTTPException(
+                status_code=400, detail="Missing file_url for the file in DB"
+            )
 
         # Process file with skip_pages
-        processor = FileProcessor(file_id=file_id, file_url=file_url, file_type=file_type, skip_pages=skip_pages)
+        processor = FileProcessor(
+            file_id=file_id,
+            file_url=file_url,
+            file_type=file_type,
+            skip_pages=skip_pages,
+        )
         result = processor.process_file()
 
         return {"status": "success", "data": result}
@@ -100,6 +113,8 @@ def extract_file_route(
 
 class UserRuleRequest(BaseModel):
     extract: str
+
+
 @router.post("/user_rule_yml")
 def user_rules_yml(request: UserRuleRequest):
     try:
@@ -116,7 +131,9 @@ def user_rules_yml(request: UserRuleRequest):
 def clean_extracted_file_user_rules(file_id: str):
     try:
         # Fetch file metadata from Supabase
-        resp = supabase.table("fileInfo").select("*").eq("id", file_id).single().execute()
+        resp = (
+            supabase.table("fileInfo").select("*").eq("id", file_id).single().execute()
+        )
         file_info = resp.data
         if not file_info:
             raise HTTPException(status_code=404, detail="File not found")
@@ -128,7 +145,9 @@ def clean_extracted_file_user_rules(file_id: str):
         # Fetch Markdown content
         resp = requests.get(md_url, timeout=10)
         if resp.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to fetch Markdown content")
+            raise HTTPException(
+                status_code=400, detail="Failed to fetch Markdown content"
+            )
         md_content = resp.text
 
         # Clean Markdown
@@ -139,10 +158,12 @@ def clean_extracted_file_user_rules(file_id: str):
         new_md_url = storage.upload(cleaned_md, f"{file_id}_cleaned.md")
 
         # Update Supabase
-        supabase.table("fileInfo").update({
-            "extracted_markdown_link": new_md_url,
-            "extracted_markdown_text": cleaned_md
-        }).eq("id", file_id).execute()
+        supabase.table("fileInfo").update(
+            {
+                "extracted_markdown_link": new_md_url,
+                "extracted_markdown_text": cleaned_md,
+            }
+        ).eq("id", file_id).execute()
 
         return {"markdown_url": new_md_url, "status": "file cleaned with user rules"}
 
@@ -156,8 +177,9 @@ def clean_extracted_file_user_rules(file_id: str):
 @router.get("/chunk_file/{file_id}")
 def chunk_file(file_id: str, method: str = "structural"):
     try:
-        print(f" print method name = {method}")
-        # ✅ Fetch file metadata from Supabase
+        print(f"Method: {method}")
+
+        # Fetch file metadata from Supabase
         resp = supabase.table("fileInfo").select("*").eq("id", file_id).single().execute()
         file_info = resp.data
         if not file_info:
@@ -167,11 +189,11 @@ def chunk_file(file_id: str, method: str = "structural"):
         if not md_url:
             raise HTTPException(status_code=400, detail="Missing Markdown link in DB")
 
-        # ✅ Initialize ChunkService and fetch markdown content
+        # Fetch markdown content
         chunk_service = ChunkService()
         markdown_text = chunk_service.fetch_markdown(md_url)
 
-        # ✅ Chunk using LangChain
+        # Chunk the text
         if method == "structural":
             docs = chunk_service.structural_chunking(markdown_text)
         elif method == "hybrid":
@@ -179,12 +201,39 @@ def chunk_file(file_id: str, method: str = "structural"):
         else:
             raise HTTPException(status_code=400, detail="Invalid chunking method")
 
-        # ✅ Return JSON + Markdown
+        # Split docs into smaller batches to avoid request too large
+        chunks_for_ai = []
+        current_chunk = ""
+
+        for doc in docs:
+            doc_text = doc.page_content
+            if len(current_chunk) + len(doc_text) > 1500:
+                chunks_for_ai.append(current_chunk)
+                current_chunk = doc_text
+            else:
+                current_chunk += "\n\n" + doc_text
+
+        if current_chunk:
+            chunks_for_ai.append(current_chunk)
+
+        # Generate summaries for each batch
+        all_summaries = []
+        for chunk in chunks_for_ai:
+            response = groq_client.responses.create(
+                model="openai/gpt-oss-120b",
+                input=f"Summarize the following content in short explanation:\n{chunk}"
+            )
+            summary_text = response.output_text if hasattr(response, "output_text") else str(response)
+            all_summaries.append(summary_text)
+
+        # Combine summaries into a final summary
+        final_summary = "\n\n".join(all_summaries)
+
+        # Return JSON + Markdown + Final Summary
         return {
-            "doc":docs,
+            "summary": final_summary,
             "json": chunk_service.to_json(docs),
-            "markdown": chunk_service.to_markdown(docs)
-            
+            "markdown": chunk_service.to_markdown(docs),
         }
 
     except Exception as e:
