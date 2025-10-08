@@ -19,3 +19,5 @@ unstructured[md]
 nltk
 python-dotenv
 
+openai
+
