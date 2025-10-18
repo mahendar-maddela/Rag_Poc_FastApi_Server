@@ -1,0 +1,20 @@
+# Ignore environment and secrets
+.env
+*.env
+
+# Ignore cache and build files
+__pycache__/
+*.pyc
+*.pyo
+*.log
+
+# Ignore local environments
+venv/
+.env/
+.idea/
+.vscode/
+*.pdf
+*.docx
+*.md
+uploads/
+.DS_Store

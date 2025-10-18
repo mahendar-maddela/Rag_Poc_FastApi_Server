@@ -12,9 +12,10 @@ camelot-py
 pytesseract
 PyYAML
 numpy
-
 langchain
+langchain-core
 langchain-community
+langchain-text-splitters
 unstructured[md]
 nltk
 python-dotenv
