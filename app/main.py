@@ -2,9 +2,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.routes import router as api_router
 from fastapi.staticfiles import StaticFiles
+from app import models
+from app.db.database import Base, engine
+
 
 
 app = FastAPI(title="My FastAPI App")
+
+
+# Ensure models are registered before create_all
+Base.metadata.create_all(bind=engine)
+
 
 origins = [
     "http://localhost:3000",  # React Dev Server

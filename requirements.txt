@@ -21,4 +21,7 @@ nltk
 python-dotenv
 
 openai
-
+sqlalchemy
+psycopg2-binary
+passlib[bcrypt]
+python-jose
