@@ -6,19 +6,17 @@ from app import models
 from app.db.database import Base, engine
 
 
-
-app = FastAPI(title="My FastAPI App")
-
+app = FastAPI(title="My FastAPI App - Rag Poc ML")
 
 # Ensure models are registered before create_all
-Base.metadata.create_all(bind=engine)
+# Base.metadata.drop_all(bind=engine)
+# Base.metadata.create_all(bind=engine)
 
 
 origins = [
     "http://localhost:3000",  # React Dev Server
     "https://file-managment-rag-poc.vercel.app",
     "http://localhost:3001", 
-
 ]
 
 app.add_middleware(
@@ -30,11 +28,13 @@ app.add_middleware(
     
 )
 
-# include versioned API routes
+#  Serve uploads folder as static files
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+#  API Routes
 app.include_router(api_router, prefix="/api/v1")
 
-# ✅ Serve uploads folder as static files
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 
 
 @app.get("/")

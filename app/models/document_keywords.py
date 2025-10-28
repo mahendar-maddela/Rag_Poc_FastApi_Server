@@ -17,7 +17,7 @@ from app.db.database import Base
 
 
 # ENUM for tagging_method
-class TaggingMethod(enum.Enum):
+class TaggingMethodType(enum.Enum):
     manual = "manual"
     auto_extraction = "auto_extraction"
     llm_generated = "llm_generated"
@@ -30,7 +30,7 @@ class DocumentKeyword(Base):
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
     keyword_id = Column(UUID(as_uuid=True), ForeignKey("keywords.id"), nullable=False)
     relevance_score = Column(DECIMAL(3, 2))
-    tagging_method = Column(Enum(TaggingMethod, name="tagging_method_enum"))
+    tagging_method = Column(Enum(TaggingMethodType, name="tagging_method_enum"))
     extraction_confidence = Column(DECIMAL(3, 2))
     tagged_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     tagged_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)

@@ -25,3 +25,7 @@ sqlalchemy
 psycopg2-binary
 passlib[bcrypt]
 python-jose
+pgvector
+pydantic[email]
+bcrypt
+passlib

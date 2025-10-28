@@ -1,17 +1,14 @@
 from sqlalchemy.orm import Session
-from app import models, schemas
-from app.utils.hashing import Hash
+from app.models.user import User
 
-def create_user(request: schemas.user_schema.UserCreate, db: Session):
-    new_user = models.user.User(
-        username=request.username,
-        email=request.email,
-        hashed_password=Hash.bcrypt(request.password)
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return new_user
+class UserRepository:
+    @staticmethod
+    def create_user(db: Session, user: User):
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
 
-def get_user_by_email(email: str, db: Session):
-    return db.query(models.user.User).filter(models.user.User.email == email).first()
+    @staticmethod
+    def get_by_email(db: Session, email: str):
+        return db.query(User).filter(User.email == email).first()
