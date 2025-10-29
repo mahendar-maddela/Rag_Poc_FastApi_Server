@@ -29,3 +29,5 @@ pgvector
 pydantic[email]
 bcrypt
 passlib
+python-multipart
+boto3
