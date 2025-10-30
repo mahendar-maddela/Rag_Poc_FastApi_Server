@@ -33,7 +33,7 @@ class DocumentRepository:
                 DocumentUpload.id.label("upload_id"),
                 DocumentUpload.cloud_storage_url,
                 DocumentUpload.cloud_storage_path,
-                DocumentUpload.created_at.label("upload_created_at"),
+                DocumentUpload.upload_timestamp.label("upload_created_at"),
             )
             .join(DocumentUpload, Document.id == DocumentUpload.document_id)
             .order_by(Document.created_at.desc())

@@ -16,7 +16,7 @@ class DocumentService:
         try:
             bucket = os.getenv("SUPABASE_BUCKET")
             file_ext = file.filename.split(".")[-1]
-            file_path = f"{user.id}/{uuid.uuid4()}.{file_ext}"
+            file_path = f"uploads/{uuid.uuid4()}-{file.filename}.{file_ext}"
 
             # --- Upload to Supabase S3 ---
             s3_client.upload_fileobj(file.file, bucket, file_path)
@@ -64,27 +64,48 @@ class DocumentService:
             raise e
 
     @staticmethod
-    def get_all_documents(db: Session):
+    def  get_all_documents(db):
         rows = DocumentRepository.get_all_documents(db)
+        bucket = os.getenv("SUPABASE_BUCKET")
 
         documents = []
         for row in rows:
+            # Generate a new signed URL every time (valid for 1 hour)
+            signed_url = None
+            if row.cloud_storage_path:
+                try:
+                    signed_url = s3_client.generate_presigned_url(
+                        "get_object",
+                        Params={
+                            "Bucket": bucket,
+                            "Key": row.cloud_storage_path,
+                        },
+                        ExpiresIn=3600,  # valid for 1 hour
+                    )
+                except Exception as e:
+                    print(f"Error generating signed URL: {e}")
+                    signed_url = None
+
             documents.append(
                 {
                     "document_id": str(row.document_id),
                     "title": row.title,
                     "original_filename": row.original_filename,
                     "file_type": row.file_type,
-                    "document_created_at": row.document_created_at.isoformat()
-                    if row.document_created_at
-                    else None,
+                    "document_created_at": (
+                        row.document_created_at.isoformat()
+                        if row.document_created_at
+                        else None
+                    ),
                     "upload": {
                         "upload_id": str(row.upload_id),
-                        "cloud_storage_url": row.cloud_storage_url,
+                        "cloud_storage_url": signed_url,  # 🧠 Always fresh
                         "cloud_storage_path": row.cloud_storage_path,
-                        "upload_created_at": row.upload_created_at.isoformat()
-                        if row.upload_created_at
-                        else None,
+                        "upload_created_at": (
+                            row.upload_created_at.isoformat()
+                            if row.upload_created_at
+                            else None
+                        ),
                     },
                 }
             )
