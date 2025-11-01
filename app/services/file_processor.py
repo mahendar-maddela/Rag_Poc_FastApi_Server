@@ -57,8 +57,9 @@ import markdownify
 from io import BytesIO
 from .extractors.pdf_extractor import PdfExtractor
 from .extractors.text_extractor import TextExtractor
-from app.services.storage_db_service import StorageService
 from typing import Optional,List
+from app.core.s3_client import S3Client
+
 
 
 class FileProcessor:
@@ -67,7 +68,7 @@ class FileProcessor:
         self.file_url = file_url
         self.file_type = file_type.lower()
         self.skip_pages = skip_pages or []
-        self.storage = StorageService()
+        self.storage = S3Client()
 
     def _download_file(self) -> BytesIO:
         response = requests.get(self.file_url)
@@ -99,7 +100,7 @@ class FileProcessor:
         md_url = self.storage.upload(md_content, f"{self.file_id}_extracted.md")
 
         # Update DB
-        self.storage.update_file_links(self.file_id, rich_url, md_url,md_content ,rich_text)
+        # self.storage.update_file_links(self.file_id, rich_url, md_url,md_content ,rich_text)
 
         return {
             "file_id": self.file_id,

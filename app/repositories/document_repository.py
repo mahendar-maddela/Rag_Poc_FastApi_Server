@@ -40,3 +40,12 @@ class DocumentRepository:
         )
 
         return query.all()
+
+    @staticmethod
+    def get_document_with_upload(db: Session, file_id: str):
+        return (
+            db.query(Document)
+            .join(DocumentUpload)
+            .filter(Document.id == file_id)
+            .first()
+        )
